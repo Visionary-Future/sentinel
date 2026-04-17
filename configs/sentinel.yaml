@@ -1,0 +1,114 @@
+server:
+  port: 8080
+  mode: debug # debug | release
+
+database:
+  host: localhost
+  port: 5432
+  name: sentinel
+  user: sentinel
+  password: sentinel
+  sslmode: disable
+  max_open_conns: 25
+  max_idle_conns: 5
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+alert_sources:
+  slack:
+    enabled: false
+    bot_token: ""        # xoxb-...
+    app_token: ""        # xapp-... (Socket Mode)
+    signing_secret: ""
+    channels: []
+    # channels:
+    #   - id: C01ABCDEF01
+    #     name: "#ops-alerts"
+    #     filters:
+    #       keywords: ["FIRING", "alert"]
+
+  outlook:
+    enabled: false
+    imap_host: ""          # IMAP服务器，见下方常用配置
+    imap_port: 993         # 993=TLS(推荐), 143=STARTTLS
+    username: ""           # 邮箱账号，如 alerts@yourcompany.com
+    password: ""           # 授权码（非登录密码），各平台开启方式见注释
+    folder: INBOX
+    tls: true
+    poll_interval: 30s
+    filters:
+      subjects: []         # 主题关键词，如 ["告警", "ALERT", "FIRING"]
+      keywords: []         # 主题或正文关键词
+      senders: []          # 发件人过滤，如 ["alertmanager@", "datadog.com"]
+    #
+    # 常用 IMAP 服务器配置：
+    #   163企业邮箱:   imap_host: imap.163.com        imap_port: 993
+    #   QQ企业邮箱:    imap_host: imap.exmail.qq.com   imap_port: 993
+    #   QQ个人邮箱:    imap_host: imap.qq.com          imap_port: 993
+    #   阿里企业邮箱:   imap_host: imap.mxhichina.com   imap_port: 993
+    #   Outlook/365:   imap_host: outlook.office365.com imap_port: 993
+    #
+    # 授权码开启方式（各平台用授权码而非登录密码）：
+    #   163: 邮箱设置 → POP3/SMTP/IMAP → 开启IMAP → 生成授权码
+    #   QQ企业邮箱: 邮箱设置 → 账户 → 开启IMAP → 生成独立密码
+    #   QQ个人邮箱: 邮箱设置 → 账户 → 生成授权码
+
+  webhook:
+    enabled: true
+    path: /api/v1/alerts/webhook
+    secret: ""
+
+embedding:
+  enabled: false
+  provider: openai         # openai | tongyi
+  api_key: ""
+  model: text-embedding-3-small
+  base_url: ""             # leave empty for default (openai: api.openai.com, tongyi: dashscope)
+  dims: 1536
+
+data_sources:
+  aliyun_sls:
+    enabled: false
+    endpoint: "cn-hangzhou.log.aliyuncs.com"
+    access_key_id: ""
+    access_key_secret: ""
+    project: ""
+    default_logstore: ""
+
+  aliyun_cms:
+    enabled: false
+    access_key_id: ""
+    access_key_secret: ""
+    region: "cn-hangzhou"
+
+llm:
+  default_provider: claude
+  providers:
+    claude:
+      api_key: ""
+      model: claude-sonnet-4-6
+    tongyi:
+      api_key: ""
+      model: qwen-max
+    deepseek:
+      api_key: ""
+      model: deepseek-chat
+
+notification:
+  slack:
+    enabled: false
+    bot_token: ""
+    default_channel: ""
+    reply_in_thread: true
+
+  wecom:
+    enabled: false
+    webhook_url: ""
+
+  dingtalk:
+    enabled: false
+    webhook_url: ""
+    secret: ""

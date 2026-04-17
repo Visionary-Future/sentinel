@@ -1,0 +1,47 @@
+# Go build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+
+# Go dependencies
+vendor/
+go.sum
+
+# Environment
+*.env
+.env
+.env.local
+*.local.yaml
+configs/sentinel.local.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node.js
+node_modules/
+*.npm
+.npm/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Next.js build
+web/.next/
+web/out/
+web/build/
+
+# Coverage
+coverage/
+*.lcov
+
+# Logs
+logs/
+*.log

@@ -1,0 +1,33 @@
+{
+  "name": "Sentinel Alert Investigation Platform",
+  "description": "AI-driven alert investigation platform for Chinese cloud environments",
+  "version": "0.1.0",
+  "language": "go",
+  "features": {
+    "multiLangSupport": ["go", "typescript", "sql"],
+    "database": "postgresql",
+    "frameworks": ["gin", "nextjs"],
+    "llm": "claude,tongyi,deepseek"
+  },
+  "codeMap": {
+    "backend": "internal/",
+    "frontend": "web/",
+    "config": "configs/",
+    "migrations": "migrations/",
+    "docs": "docs/"
+  },
+  "development": {
+    "setup": ["make docker-up"],
+    "runBackend": "make run",
+    "runFrontend": "cd web && npm run dev",
+    "test": "make test",
+    "lint": "make lint"
+  },
+  "hooks": {
+    "postWrite": "Run linter and tests after code changes"
+  },
+  "settings": {
+    "autoCommit": false,
+    "modelPreference": "claude-sonnet-4-6"
+  }
+}
