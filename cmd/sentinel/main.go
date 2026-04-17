@@ -69,7 +69,9 @@ func main() {
 	provider := buildLLMProvider(cfg.LLM, log)
 
 	// Investigation Engine
-	engine := investigation.NewEngine(db, invRepo, runbookRepo, alertRepo, provider, sources, embedder, notifier, log)
+	engine := investigation.NewEngine(db, invRepo, runbookRepo, alertRepo, provider, sources, embedder, notifier, log,
+		buildEngineConfig(cfg.Investigation),
+	)
 
 	// Alert sources
 	webhookSrc := source.NewWebhook(cfg.Alert.Webhook, log)
@@ -97,9 +99,32 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	// Alert handler: normalise → save → embed → investigate
+	// Alert correlation (optional): buffer alerts by service within a time window
+	var correlator *investigation.Correlator
+	if cfg.Investigation.CorrelationEnabled {
+		window := time.Duration(cfg.Investigation.CorrelationWindowSec) * time.Second
+		correlator = investigation.NewCorrelator(window, func(group *investigation.AlertGroup) {
+			inv, err := engine.Investigate(ctx, group.PrimaryAlert)
+			if err != nil && err != investigation.ErrDuplicateInvestigation {
+				log.Error("investigation from correlator failed",
+					"alert_id", group.PrimaryAlert.ID,
+					"related_count", len(group.Related),
+					"error", err)
+				return
+			}
+			if inv != nil {
+				log.Info("correlated investigation started",
+					"investigation_id", inv.ID,
+					"primary_alert", group.PrimaryAlert.ID,
+					"related_count", len(group.Related))
+			}
+		})
+		log.Info("alert correlation enabled", "window", window)
+	}
+
+	// Alert handler: normalise → save → embed → correlate/investigate
 	onAlert := func(evt *alert.Event) {
-		handleAlert(ctx, evt, alertRepo, embedder, engine, log)
+		handleAlert(ctx, evt, alertRepo, embedder, engine, correlator, log)
 	}
 
 	// Start all alert sources
@@ -116,7 +141,7 @@ func main() {
 	deps := &handler.Deps{
 		Alert:         handler.NewAlertHandler(alertRepo, webhookSrc, log),
 		Runbook:       handler.NewRunbookHandler(runbookRepo, log),
-		Investigation: handler.NewInvestigationHandler(invRepo, log),
+		Investigation: handler.NewInvestigationHandler(invRepo, engine, log),
 	}
 	srv := api.New(cfg.Server, deps, log)
 
@@ -129,15 +154,27 @@ func main() {
 	<-ctx.Done()
 	log.Info("shutting down…")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("http shutdown error", "error", err)
 	}
+
+	// Stop correlator first so it flushes pending groups
+	if correlator != nil {
+		correlator.Stop()
+	}
+
+	// Wait for active investigations to finish (or timeout)
+	if err := engine.Shutdown(shutdownCtx); err != nil {
+		log.Error("investigation engine shutdown timeout", "error", err)
+	}
+	log.Info("shutdown complete")
 }
 
 // handleAlert normalises, persists, embeds, and triggers investigation for an alert.
-func handleAlert(ctx context.Context, evt *alert.Event, repo *alert.Repository, embedder llm.Embedder, engine *investigation.Engine, log *slog.Logger) {
+func handleAlert(ctx context.Context, evt *alert.Event, repo *alert.Repository, embedder llm.Embedder, engine *investigation.Engine, correlator *investigation.Correlator, log *slog.Logger) {
 	normalised := alert.Normalize(evt)
 
 	saved, err := repo.Save(ctx, normalised)
@@ -172,7 +209,18 @@ func handleAlert(ctx context.Context, evt *alert.Event, repo *alert.Repository, 
 		}()
 	}
 
+	// If correlator is enabled, buffer the alert for grouping; otherwise investigate directly
+	if correlator != nil {
+		correlator.Add(saved)
+		log.Debug("alert queued for correlation", "alert_id", saved.ID, "service", saved.Service)
+		return
+	}
+
 	inv, err := engine.Investigate(ctx, saved)
+	if err == investigation.ErrDuplicateInvestigation {
+		log.Debug("duplicate investigation skipped", "alert_id", saved.ID)
+		return
+	}
 	if err != nil {
 		log.Error("failed to start investigation", "alert_id", saved.ID, "error", err)
 		return
@@ -259,29 +307,104 @@ func buildNotifier(cfg config.NotifyConfig, log *slog.Logger) *notify.MultiChann
 		log.Info("no notification channels configured")
 	}
 
-	return notify.NewMultiChannel(channels...)
+	return notify.NewMultiChannel(log, channels...)
 }
 
 // buildLLMProvider constructs the LLM provider from config.
 func buildLLMProvider(cfg config.LLMConfig, log *slog.Logger) llm.Provider {
-	p, ok := cfg.Providers[cfg.DefaultProvider]
-	if !ok || p.APIKey == "" {
-		log.Warn("no LLM provider configured, using noop provider",
-			"default_provider", cfg.DefaultProvider)
+	var providers []llm.Provider
+	providersByName := make(map[string]llm.Provider)
+
+	// Build provider for each configured entry
+	for name, p := range cfg.Providers {
+		if p.APIKey == "" {
+			continue
+		}
+		var provider llm.Provider
+		switch name {
+		case "claude":
+			provider = llm.NewClaude(p.APIKey, p.Model)
+		case "tongyi":
+			provider = llm.NewTongyi(p.APIKey, p.Model)
+		default:
+			provider = llm.NewOpenAICompat(p.APIKey, p.Model, "https://api.openai.com/v1")
+		}
+		providers = append(providers, provider)
+		providersByName[name] = provider
+		log.Info("LLM provider configured", "provider", name, "model", p.Model)
+	}
+
+	// Put the default provider first in the chain
+	if cfg.DefaultProvider != "" {
+		sorted := make([]llm.Provider, 0, len(providers))
+		for _, p := range providers {
+			if p.Name() == cfg.DefaultProvider {
+				sorted = append([]llm.Provider{p}, sorted...)
+			} else {
+				sorted = append(sorted, p)
+			}
+		}
+		providers = sorted
+	}
+
+	if len(providers) == 0 {
+		log.Warn("no LLM provider configured, using noop provider")
 		return &noopProvider{}
 	}
 
-	switch cfg.DefaultProvider {
-	case "claude":
-		log.Info("using LLM provider", "provider", "claude", "model", p.Model)
-		return llm.NewClaude(p.APIKey, p.Model)
-	case "tongyi":
-		log.Info("using LLM provider", "provider", "tongyi", "model", p.Model)
-		return llm.NewTongyi(p.APIKey, p.Model)
-	default:
-		log.Info("using LLM provider", "provider", "openai_compat", "model", p.Model)
-		return llm.NewOpenAICompat(p.APIKey, p.Model, "https://api.openai.com/v1")
+	if len(providers) == 1 {
+		return wrapLLMProvider(providers[0], cfg, providersByName, log)
 	}
+
+	log.Info("LLM fallback chain configured", "count", len(providers))
+	return wrapLLMProvider(llm.NewFallbackProvider(log, providers...), cfg, providersByName, log)
+}
+
+// wrapLLMProvider applies optional CachingProvider and SeverityRouter layers.
+func wrapLLMProvider(base llm.Provider, cfg config.LLMConfig, providersByName map[string]llm.Provider, log *slog.Logger) llm.Provider {
+	var p llm.Provider = base
+
+	// Wrap with prompt caching
+	if cfg.PromptCaching {
+		p = llm.NewCachingProvider(p)
+		log.Info("LLM prompt caching enabled")
+	}
+
+	// Wrap with severity routing if configured
+	if len(cfg.SeverityRouting) > 0 {
+		routes := make(map[string]llm.Provider)
+		for severity, providerName := range cfg.SeverityRouting {
+			if prov, ok := providersByName[providerName]; ok {
+				routes[severity] = prov
+				log.Info("severity routing configured", "severity", severity, "provider", providerName)
+			}
+		}
+		if len(routes) > 0 {
+			p = llm.NewSeverityRouter(p, routes)
+		}
+	}
+
+	return p
+}
+
+// buildEngineConfig maps config values to EngineConfig with defaults.
+func buildEngineConfig(cfg config.InvestigationConfig) investigation.EngineConfig {
+	ec := investigation.EngineConfig{}
+	if cfg.TimeoutMinutes > 0 {
+		ec.Timeout = time.Duration(cfg.TimeoutMinutes) * time.Minute
+	}
+	if cfg.MaxConcurrent > 0 {
+		ec.MaxConcurrent = cfg.MaxConcurrent
+	}
+	if cfg.DedupWindowMin > 0 {
+		ec.DedupWindow = time.Duration(cfg.DedupWindowMin) * time.Minute
+	}
+	ec.TokenBudgets = investigation.TokenBudgets{
+		Critical: cfg.TokenBudgets.Critical,
+		Warning:  cfg.TokenBudgets.Warning,
+		Info:     cfg.TokenBudgets.Info,
+	}
+	return ec
 }
 
 // noopProvider is used when no LLM API key is configured.

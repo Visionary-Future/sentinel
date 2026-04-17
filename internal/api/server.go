@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sentinelai/sentinel/internal/api/handler"
 	"github.com/sentinelai/sentinel/internal/api/middleware"
 	"github.com/sentinelai/sentinel/internal/config"
@@ -46,6 +47,7 @@ func New(cfg config.ServerConfig, deps *handler.Deps, log *slog.Logger) *Server 
 
 func registerRoutes(r *gin.Engine, deps *handler.Deps) {
 	r.GET("/healthz", handler.Health)
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -62,6 +64,9 @@ func registerRoutes(r *gin.Engine, deps *handler.Deps) {
 
 		v1.GET("/investigations", deps.Investigation.List)
 		v1.GET("/investigations/:id", deps.Investigation.Get)
+		v1.POST("/investigations/:id/cancel", deps.Investigation.Cancel)
+		v1.PATCH("/investigations/:id/feedback", deps.Investigation.Feedback)
+		v1.GET("/investigations/:id/stream", deps.Investigation.Stream)
 	}
 }
 

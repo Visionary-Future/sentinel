@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/sentinelai/sentinel/internal/alert"
@@ -38,20 +39,51 @@ type Channel interface {
 	Send(ctx context.Context, p *Payload) error
 }
 
+const maxNotifyRetries = 2
+
 // MultiChannel fans a notification out to all configured channels.
 type MultiChannel struct {
 	channels []Channel
+	log      *slog.Logger
 }
 
-func NewMultiChannel(channels ...Channel) *MultiChannel {
-	return &MultiChannel{channels: channels}
+func NewMultiChannel(log *slog.Logger, channels ...Channel) *MultiChannel {
+	return &MultiChannel{channels: channels, log: log}
 }
 
 func (m *MultiChannel) Send(ctx context.Context, p *Payload) {
 	for _, ch := range m.channels {
-		if err := ch.Send(ctx, p); err != nil {
-			// Notification failures are non-fatal; log at call site.
-			_ = err
-		}
+		m.sendWithRetry(ctx, ch, p)
 	}
+}
+
+func (m *MultiChannel) sendWithRetry(ctx context.Context, ch Channel, p *Payload) {
+	var err error
+	for attempt := 0; attempt <= maxNotifyRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				m.log.Error("notification cancelled during retry",
+					"channel", ch.Name(), "error", ctx.Err())
+				return
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
+		}
+
+		err = ch.Send(ctx, p)
+		if err == nil {
+			return
+		}
+
+		m.log.Warn("notification send failed",
+			"channel", ch.Name(),
+			"attempt", attempt+1,
+			"error", err,
+		)
+	}
+
+	m.log.Error("notification send exhausted retries",
+		"channel", ch.Name(),
+		"error", err,
+	)
 }

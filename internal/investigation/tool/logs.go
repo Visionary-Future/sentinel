@@ -103,18 +103,10 @@ func QueryMetrics(sources *datasource.Registry) func(ctx context.Context, input 
 
 		src := sources.Default()
 		if src == nil {
-			now := time.Now()
 			return fmt.Sprintf(
 				"[query_metrics] service=%s metric=%s time_range=%s\n"+
-					"Sample data points (stub):\n"+
-					"  %s: value=120\n"+
-					"  %s: value=850 (spike)\n"+
-					"  %s: value=920 (elevated)\n"+
-					"No data source configured.",
+					"No data source configured. Connect Aliyun CloudMonitor in config (data_sources.aliyun_cms).",
 				in.Service, in.MetricName, in.TimeRange,
-				now.Add(-30*time.Minute).Format(time.RFC3339),
-				now.Add(-15*time.Minute).Format(time.RFC3339),
-				now.Add(-5*time.Minute).Format(time.RFC3339),
 			), nil
 		}
 

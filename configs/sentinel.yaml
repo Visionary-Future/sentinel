@@ -84,8 +84,33 @@ data_sources:
     access_key_secret: ""
     region: "cn-hangzhou"
 
+  traces:
+    enabled: false
+    provider: ""           # arms | jaeger | tempo
+    endpoint: ""
+
+investigation:
+  timeout_minutes: 10        # max duration per investigation
+  max_concurrent: 5          # max parallel investigations
+  dedup_window_min: 5        # ignore duplicate fingerprints within this window
+  token_budget: 100000       # max tokens per investigation
+  correlation_enabled: false # enable alert correlation grouping
+  correlation_window_sec: 120 # correlation buffer window
+
+deployments:
+  enabled: false
+  provider: ""               # github | argocd
+  token: ""
+  org: ""
+
+code_source:
+  enabled: false
+  token: ""
+  org: ""
+
 llm:
   default_provider: claude
+  prompt_caching: true         # cache repeated system prompts (reduces cost with Claude)
   providers:
     claude:
       api_key: ""
@@ -96,6 +121,10 @@ llm:
     deepseek:
       api_key: ""
       model: deepseek-chat
+  # severity_routing:          # route different severities to different models
+  #   critical: claude         # use Claude for critical alerts
+  #   warning: tongyi          # use Tongyi for warnings
+  #   info: deepseek           # use DeepSeek for info alerts
 
 notification:
   slack:

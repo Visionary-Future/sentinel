@@ -390,6 +390,26 @@ interface LLMProvider {
 // - OpenAIProvider   (OpenAI GPT)
 ```
 
+**引擎增强功能 (Engine Enhancements)**:
+
+| 功能 | 说明 | 配置 |
+|------|------|------|
+| **指纹去重** | 同一 fingerprint 在 dedup_window 内不重复调查 | `investigation.dedup_window_min` |
+| **结果缓存** | 复用近期同指纹告警的调查结论（24h TTL） | 自动，可通过 feedback=incorrect 失效 |
+| **并发控制** | 信号量限制并行调查数 | `investigation.max_concurrent` |
+| **优先级队列** | Critical > Warning > Info 优先调度 | 自动按 severity 排序 |
+| **告警关联** | 同服务告警在时间窗口内聚合为一组，只调查最高严重度 | `investigation.correlation_enabled/window_sec` |
+| **SSE 实时流** | 调查步骤实时推送到前端 | `GET /api/v1/investigations/:id/stream` |
+| **LLM Fallback** | 多 Provider 链式降级，指数退避重试 | 配置多个 `llm.providers` |
+| **Prompt 缓存** | 重复 system prompt 标记 cache_control 减少 token 消耗 | `llm.prompt_caching: true` |
+| **严重度路由** | 不同严重度使用不同 LLM 模型 | `llm.severity_routing` |
+| **Confidence 评分** | Agent 自评调查结论可信度 (0-100) | 自动从 LLM 输出解析 |
+| **人工反馈** | 标记调查结论正确/错误，影响缓存复用 | `PATCH /api/v1/investigations/:id/feedback` |
+| **Prometheus 指标** | 调查计数、延迟、token 用量、活跃数等 | `GET /metrics` |
+| **Runbook 自动生成** | 分析已完成调查，聚类提炼 Runbook 建议 | `internal/runbook/generator.go` |
+| **Token Budget** | 单次调查 token 上限 + 工具输出截断 (4000 chars) | `investigation.token_budget` |
+| **优雅关闭** | WaitGroup 等待活跃调查完成（30s 超时） | 自动 |
+
 #### 2.2.3 Data Source Layer (数据源层)
 
 每个数据源实现统一的 DataSource 接口：
@@ -841,16 +861,33 @@ data_sources:
     access_key_secret: ${ALIYUN_AK_SECRET}
     region: cn-hangzhou
 
+# 调查引擎配置
+investigation:
+  timeout_minutes: 10
+  max_concurrent: 5
+  dedup_window_min: 5
+  token_budget: 100000
+  correlation_enabled: false
+  correlation_window_sec: 120
+
 # LLM 配置
 llm:
   default_provider: tongyi
+  prompt_caching: true
   providers:
     tongyi:
       api_key: ${TONGYI_API_KEY}
       model: qwen-max
     claude:
       api_key: ${CLAUDE_API_KEY}
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-4-6
+    deepseek:
+      api_key: ${DEEPSEEK_API_KEY}
+      model: deepseek-chat
+  # severity_routing:
+  #   critical: claude
+  #   warning: tongyi
+  #   info: deepseek
 
 # 通知渠道配置
 notification:
@@ -896,10 +933,15 @@ PUT    /api/v1/runbooks/:id             # 更新 Runbook
 DELETE /api/v1/runbooks/:id             # 删除 Runbook
 
 # 调查
-GET    /api/v1/investigations           # 调查列表
-GET    /api/v1/investigations/:id       # 调查详情 (含步骤)
-POST   /api/v1/investigations/:id/retry # 重新执行调查
-GET    /api/v1/investigations/:id/stream # SSE 实时步骤流
+GET    /api/v1/investigations              # 调查列表 (?status=&limit=&offset=)
+GET    /api/v1/investigations/:id          # 调查详情 (含步骤)
+POST   /api/v1/investigations/:id/cancel   # 取消运行中的调查
+PATCH  /api/v1/investigations/:id/feedback # 人工反馈 (correct/incorrect)
+GET    /api/v1/investigations/:id/stream   # SSE 实时步骤流
+
+# 监控
+GET    /healthz                            # 健康检查
+GET    /metrics                            # Prometheus 指标
 
 # 服务目录
 GET    /api/v1/catalog/services         # 服务列表

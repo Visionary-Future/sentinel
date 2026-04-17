@@ -8,14 +8,34 @@ import (
 )
 
 type Config struct {
-	Server      ServerConfig      `mapstructure:"server"`
-	Database    DatabaseConfig    `mapstructure:"database"`
-	Redis       RedisConfig       `mapstructure:"redis"`
-	Alert       AlertConfig       `mapstructure:"alert_sources"`
-	DataSources DataSourcesConfig `mapstructure:"data_sources"`
-	Embedding   EmbeddingConfig   `mapstructure:"embedding"`
-	LLM         LLMConfig         `mapstructure:"llm"`
-	Notify      NotifyConfig      `mapstructure:"notification"`
+	Server        ServerConfig        `mapstructure:"server"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	Redis         RedisConfig         `mapstructure:"redis"`
+	Alert         AlertConfig         `mapstructure:"alert_sources"`
+	DataSources   DataSourcesConfig   `mapstructure:"data_sources"`
+	Embedding     EmbeddingConfig     `mapstructure:"embedding"`
+	LLM           LLMConfig           `mapstructure:"llm"`
+	Notify        NotifyConfig        `mapstructure:"notification"`
+	Investigation InvestigationConfig `mapstructure:"investigation"`
+	Deployments   DeploymentsConfig   `mapstructure:"deployments"`
+	CodeSource    CodeSourceConfig    `mapstructure:"code_source"`
+}
+
+type InvestigationConfig struct {
+	TimeoutMinutes       int                `mapstructure:"timeout_minutes"`       // default: 10
+	MaxConcurrent        int                `mapstructure:"max_concurrent"`        // default: 5
+	DedupWindowMin       int                `mapstructure:"dedup_window_min"`      // default: 5
+	TokenBudget          int                `mapstructure:"token_budget"`          // default: 100000
+	CorrelationEnabled   bool               `mapstructure:"correlation_enabled"`   // enable alert correlation grouping
+	CorrelationWindowSec int                `mapstructure:"correlation_window_sec"` // default: 120
+	TokenBudgets         TokenBudgetsConfig `mapstructure:"token_budgets"`         // per-severity budgets
+	WebhookURL           string             `mapstructure:"webhook_url"`           // investigation event webhook
+}
+
+type TokenBudgetsConfig struct {
+	Critical int `mapstructure:"critical"` // default: 200000
+	Warning  int `mapstructure:"warning"`  // default: 100000
+	Info     int `mapstructure:"info"`     // default: 50000
 }
 
 type ServerConfig struct {
@@ -112,6 +132,26 @@ type EmbeddingConfig struct {
 type DataSourcesConfig struct {
 	AliyunSLS AliyunSLSConfig `mapstructure:"aliyun_sls"`
 	AliyunCMS AliyunCMSConfig `mapstructure:"aliyun_cms"`
+	Traces    TracesConfig    `mapstructure:"traces"`
+}
+
+type TracesConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Provider string `mapstructure:"provider"` // "arms", "jaeger", "tempo"
+	Endpoint string `mapstructure:"endpoint"`
+}
+
+type DeploymentsConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Provider string `mapstructure:"provider"` // "github", "argocd"
+	Token    string `mapstructure:"token"`
+	Org      string `mapstructure:"org"`
+}
+
+type CodeSourceConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Token   string `mapstructure:"token"`
+	Org     string `mapstructure:"org"`
 }
 
 type AliyunCMSConfig struct {
@@ -131,8 +171,10 @@ type AliyunSLSConfig struct {
 }
 
 type LLMConfig struct {
-	DefaultProvider string                 `mapstructure:"default_provider"`
-	Providers       map[string]LLMProvider `mapstructure:"providers"`
+	DefaultProvider string                       `mapstructure:"default_provider"`
+	Providers       map[string]LLMProvider       `mapstructure:"providers"`
+	PromptCaching   bool                         `mapstructure:"prompt_caching"`   // wrap provider with CachingProvider
+	SeverityRouting map[string]string             `mapstructure:"severity_routing"` // severity → provider name
 }
 
 type LLMProvider struct {

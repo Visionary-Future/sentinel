@@ -9,10 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"log/slog"
+
 	"github.com/sentinelai/sentinel/internal/alert"
 	"github.com/sentinelai/sentinel/internal/config"
 	"github.com/sentinelai/sentinel/internal/notify"
 )
+
+var testLog = slog.Default()
 
 func testPayload() *notify.Payload {
 	return &notify.Payload{
@@ -43,7 +47,7 @@ func TestMultiChannel_Send_CallsAllChannels(t *testing.T) {
 	ch1 := &mockChannel{name: "ch1", onSend: func() { called = append(called, "ch1") }}
 	ch2 := &mockChannel{name: "ch2", onSend: func() { called = append(called, "ch2") }}
 
-	mc := notify.NewMultiChannel(ch1, ch2)
+	mc := notify.NewMultiChannel(testLog, ch1, ch2)
 	mc.Send(context.Background(), testPayload())
 
 	if len(called) != 2 {

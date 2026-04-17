@@ -111,7 +111,7 @@ func searchByKeyword(ctx context.Context, db *sql.DB, query, service string, lim
 		ORDER BY a.received_at DESC
 		LIMIT $3`
 
-	like := "%" + query + "%"
+	like := "%" + escapeILIKE(query) + "%"
 	rows, err := db.QueryContext(ctx, q, like, service, limit)
 	if err != nil {
 		return ""
@@ -139,6 +139,12 @@ func searchByKeyword(ctx context.Context, db *sql.DB, query, service string, lim
 		return ""
 	}
 	return strings.Join(results, "\n\n")
+}
+
+// escapeILIKE escapes special ILIKE/LIKE characters so they match literally.
+func escapeILIKE(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
 }
 
 func temporalCorrelation(ctx context.Context, repo *alert.Repository, service string) string {

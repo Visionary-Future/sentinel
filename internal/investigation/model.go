@@ -10,6 +10,16 @@ const (
 	StatusRunning   Status = "running"
 	StatusCompleted Status = "completed"
 	StatusFailed    Status = "failed"
+	StatusReused    Status = "reused" // result copied from a previous investigation
+)
+
+// Feedback represents human evaluation of an investigation result.
+type Feedback string
+
+const (
+	FeedbackNone      Feedback = ""
+	FeedbackCorrect   Feedback = "correct"
+	FeedbackIncorrect Feedback = "incorrect"
 )
 
 // Investigation represents one AI-driven alert analysis session.
@@ -24,7 +34,11 @@ type Investigation struct {
 	Steps       []Step    `db:"-"` // serialised as JSONB
 	LLMProvider string    `db:"llm_provider"`
 	LLMModel    string    `db:"llm_model"`
-	TokenUsage  int       `db:"token_usage"`
+	TokenUsage  int        `db:"token_usage"`
+	Confidence  int        `db:"confidence"`  // 0-100, LLM self-assessed confidence
+	Feedback    Feedback   `db:"feedback"`
+	HumanCause  string     `db:"human_cause"` // human-corrected root cause
+	ReusedFrom  string     `db:"reused_from"` // ID of investigation this was copied from
 	StartedAt   *time.Time `db:"started_at"`
 	CompletedAt *time.Time `db:"completed_at"`
 	CreatedAt   time.Time  `db:"created_at"`

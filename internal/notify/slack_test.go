@@ -2,6 +2,7 @@ package notify_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -67,6 +68,6 @@ func TestFallbackText(t *testing.T) {
 	}
 	// The Slack channel is constructed but we don't call Send (requires live token).
 	// We verify the payload is well-formed by checking MultiChannel handles it.
-	mc := notify.NewMultiChannel() // empty — no channels
+	mc := notify.NewMultiChannel(slog.Default()) // empty — no channels
 	mc.Send(context.Background(), p) // must not panic
 }

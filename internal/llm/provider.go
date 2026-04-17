@@ -24,8 +24,9 @@ type Message struct {
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"` // for role=tool responses
-	ToolName   string     `json:"tool_name,omitempty"`
+	ToolCallID   string     `json:"tool_call_id,omitempty"` // for role=tool responses
+	ToolName     string     `json:"tool_name,omitempty"`
+	CacheControl string     `json:"cache_control,omitempty"` // "ephemeral" to enable prompt caching
 }
 
 // Tool describes a function the LLM may call.
