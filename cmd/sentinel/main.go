@@ -327,7 +327,11 @@ func buildLLMProvider(cfg config.LLMConfig, log *slog.Logger) llm.Provider {
 		case "tongyi":
 			provider = llm.NewTongyi(p.APIKey, p.Model)
 		default:
-			provider = llm.NewOpenAICompat(p.APIKey, p.Model, "https://api.openai.com/v1")
+			baseURL := p.BaseURL
+			if baseURL == "" {
+				baseURL = "https://api.openai.com/v1"
+			}
+			provider = llm.NewOpenAICompat(p.APIKey, p.Model, baseURL)
 		}
 		providers = append(providers, provider)
 		providersByName[name] = provider

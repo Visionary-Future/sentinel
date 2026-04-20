@@ -178,8 +178,9 @@ type LLMConfig struct {
 }
 
 type LLMProvider struct {
-	APIKey string `mapstructure:"api_key"`
-	Model  string `mapstructure:"model"`
+	APIKey  string `mapstructure:"api_key"`
+	Model   string `mapstructure:"model"`
+	BaseURL string `mapstructure:"base_url"`
 }
 
 type NotifyConfig struct {

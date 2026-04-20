@@ -47,19 +47,19 @@ type Investigation struct {
 
 // Step is a single executed investigation step with its results.
 type Step struct {
-	Index       int         `json:"index"`
-	Description string      `json:"description"`
-	ToolCalls   []ToolCall  `json:"tool_calls"`
-	Analysis    string      `json:"analysis"`
-	StartedAt   time.Time   `json:"started_at"`
-	CompletedAt time.Time   `json:"completed_at"`
+	Index       int         `json:"Index"`
+	Description string      `json:"Description"`
+	ToolCalls   []ToolCall  `json:"ToolCalls"`
+	Analysis    string      `json:"Analysis"`
+	StartedAt   time.Time   `json:"StartedAt"`
+	CompletedAt time.Time   `json:"CompletedAt"`
 }
 
 // ToolCall records a single tool invocation and its result.
 type ToolCall struct {
-	ID     string         `json:"id"`
-	Name   string         `json:"name"`
-	Input  map[string]any `json:"input"`
-	Result string         `json:"result"`
-	Error  string         `json:"error,omitempty"`
+	ID     string         `json:"ID"`
+	Name   string         `json:"Name"`
+	Input  map[string]any `json:"Input"`
+	Result string         `json:"Result"`
+	Error  string         `json:"Error,omitempty"`
 }

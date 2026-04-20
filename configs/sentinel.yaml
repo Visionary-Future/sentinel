@@ -92,7 +92,7 @@ data_sources:
 investigation:
   timeout_minutes: 10        # max duration per investigation
   max_concurrent: 5          # max parallel investigations
-  dedup_window_min: 5        # ignore duplicate fingerprints within this window
+  dedup_window_min: 0        # ignore duplicate fingerprints within this window
   token_budget: 100000       # max tokens per investigation
   correlation_enabled: false # enable alert correlation grouping
   correlation_window_sec: 120 # correlation buffer window
@@ -109,9 +109,13 @@ code_source:
   org: ""
 
 llm:
-  default_provider: claude
+  default_provider: siliconflow
   prompt_caching: true         # cache repeated system prompts (reduces cost with Claude)
   providers:
+    siliconflow:
+      api_key: "sk-xkmpyoaangdwwjirbwajaifivchxeqarueggkgaafnauikkd"              # sk-...，从 https://cloud.siliconflow.cn/account/ak 获取
+      model: deepseek-ai/DeepSeek-V3    # 可选: deepseek-ai/DeepSeek-V3, Pro/deepseek-ai/DeepSeek-R1
+      base_url: https://api.siliconflow.cn/v1
     claude:
       api_key: ""
       model: claude-sonnet-4-6

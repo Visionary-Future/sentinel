@@ -30,6 +30,7 @@ func New(cfg config.ServerConfig, deps *handler.Deps, log *slog.Logger) *Server 
 	r := gin.New()
 	r.Use(middleware.Logger(log))
 	r.Use(middleware.Recovery(log))
+	r.Use(middleware.CORS())
 
 	registerRoutes(r, deps)
 
@@ -60,6 +61,7 @@ func registerRoutes(r *gin.Engine, deps *handler.Deps) {
 		v1.POST("/runbooks", deps.Runbook.Create)
 		v1.GET("/runbooks", deps.Runbook.List)
 		v1.GET("/runbooks/:id", deps.Runbook.Get)
+		v1.PUT("/runbooks/:id", deps.Runbook.Update)
 		v1.DELETE("/runbooks/:id", deps.Runbook.Delete)
 
 		v1.GET("/investigations", deps.Investigation.List)
